@@ -110,40 +110,54 @@ void fgui_CanvasDrawCanvas(FishGUI* GUI, FishCanvas* Source, FishCanvas* Dest, i
 	uint SrcW = Source->Width;
 	uint SrcH = Source->Height;
 	uint DstW = Dest->Width;
-	//uint DstH = Dest->Height;
+	uint DstH = Dest->Height;
 
-	for (uint Y = 0; Y < SrcH; Y++) {
-		for (uint X = 0; X < SrcW; X++) {
-			uint SrcOffset = Y * SrcW + X;
-			uint DstOffset = (Y + DestY) * DstW + (X + DestX);
-
-			byte Alpha = Source->Buffer[SrcOffset].A;
+	if (SrcW == DstW && SrcH == DstH && DestX == 0 && DestY == 0) {
+		for (uint i = 0; i < SrcW * SrcH; i++) {
+			byte Alpha = Source->Buffer[i].A;
 			if (Alpha != 0) {
-				Dest->Buffer[DstOffset].R = OVERBLEND(Source->Buffer[SrcOffset].R, Dest->Buffer[DstOffset].R, Alpha);
-				Dest->Buffer[DstOffset].G = OVERBLEND(Source->Buffer[SrcOffset].G, Dest->Buffer[DstOffset].G, Alpha);
-				Dest->Buffer[DstOffset].B = OVERBLEND(Source->Buffer[SrcOffset].B, Dest->Buffer[DstOffset].B, Alpha);
+				if (Alpha == 255) {
+					Dest->Buffer[i] = Source->Buffer[i];
+					continue;
+				}
+				Dest->Buffer[i].R = OVERBLEND(Source->Buffer[i].R, Dest->Buffer[i].R, Alpha);
+				Dest->Buffer[i].G = OVERBLEND(Source->Buffer[i].G, Dest->Buffer[i].G, Alpha);
+				Dest->Buffer[i].B = OVERBLEND(Source->Buffer[i].B, Dest->Buffer[i].B, Alpha);
+			}
+		}
+	} else {
+		for (uint Y = 0; Y < SrcH; Y++) {
+			for (uint X = 0; X < SrcW; X++) {
+				if ((X + DestX >= Dest->Width) || (Y + DestY >= Dest->Height))
+					continue;
+
+				uint SrcOffset = Y * SrcW + X;
+				uint DstOffset = (Y + DestY) * DstW + (X + DestX);
+
+				byte Alpha = Source->Buffer[SrcOffset].A;
+				if (Alpha != 0) {
+					if (Alpha == 255) {
+						Dest->Buffer[DstOffset] = Source->Buffer[SrcOffset];
+						continue;
+					}
+
+					Dest->Buffer[DstOffset].R = OVERBLEND(Source->Buffer[SrcOffset].R, Dest->Buffer[DstOffset].R, Alpha);
+					Dest->Buffer[DstOffset].G = OVERBLEND(Source->Buffer[SrcOffset].G, Dest->Buffer[DstOffset].G, Alpha);
+					Dest->Buffer[DstOffset].B = OVERBLEND(Source->Buffer[SrcOffset].B, Dest->Buffer[DstOffset].B, Alpha);
+				}
 			}
 		}
 	}
 }
 
-// TODO: Optimize
 void fgui_CanvasClear(FishGUI* GUI, FishCanvas* Canvas, byte R, byte G, byte B, byte A) {
 	UNREF_PARAM(GUI);
 
-	uint SrcH = Canvas->Height;
-	uint SrcW = Canvas->Width;
+	uint Len = Canvas->Height * Canvas->Width;
+	FishPixel Pix = { R, G, B, A };
 
-	for (uint Y = 0; Y < SrcH; Y++) {
-		for (uint X = 0; X < SrcW; X++) {
-			uint SrcOffset = Y * SrcW + X;
-
-			Canvas->Buffer[SrcOffset].R = R;
-			Canvas->Buffer[SrcOffset].G = G;
-			Canvas->Buffer[SrcOffset].B = B;
-			Canvas->Buffer[SrcOffset].A = A;
-		}
-	}
+	for (uint i = 0; i < Len; i++)
+		Canvas->Buffer[i] = Pix;
 }
 
 void fgui_CanvasResize(FishGUI* GUI, FishCanvas* Canvas, int W, int H) {
@@ -177,6 +191,7 @@ void fgui_CanvasResize(FishGUI* GUI, FishCanvas* Canvas, int W, int H) {
 	fgui_CanvasDestroy(GUI, NewCanvas);
 }
 
+// Joke function :3
 void fgui_CanvasDrawCanvasDepth(FishGUI* GUI, FishCanvas* Source, FishCanvas* SourceDepth,
 	FishCanvas* Dest, FishCanvas* DestDepth, int DestX, int DestY) {
 

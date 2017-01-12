@@ -56,7 +56,7 @@ namespace Test {
 		static IntPtr PotatoPtr, PotatoDepthPtr;
 		static int PotatoLen, PotatoDepthLen;
 
-		static IntPtr PotatoCanvas = IntPtr.Zero;
+		static IntPtr PotatoCanvas = IntPtr.Zero, TestCanvas = IntPtr.Zero;
 
 		static IntPtr ReAlloc(IntPtr Ptr, int Size) {
 			if (Ptr == IntPtr.Zero)
@@ -71,7 +71,8 @@ namespace Test {
 			IntPtr ScreenCanvas = fgui_GetScreenCanvas(GUI);
 			fgui_CanvasClear(GUI, ScreenCanvas, 54, 57, 62, 255);
 
-			IntPtr TestCanvas = fgui_CanvasCreate(GUI, 100, 100);
+			if (TestCanvas == IntPtr.Zero)
+				TestCanvas = fgui_CanvasCreate(GUI, 100, 100);
 			fgui_CanvasClear(GUI, TestCanvas, 255, 0, 0, 255);
 			fgui_CanvasDrawCanvas(GUI, TestCanvas, ScreenCanvas, 100, 100);
 
@@ -79,12 +80,13 @@ namespace Test {
 			fgui_CanvasDrawCanvas(GUI, TestCanvas, ScreenCanvas, 120, 120);
 
 			fgui_CanvasClear(GUI, TestCanvas, 0, 0, 255, 255);
-			fgui_CanvasResize(GUI, TestCanvas, 200, 200);
+			//fgui_CanvasResize(GUI, TestCanvas, 200, 200);
 			fgui_CanvasDrawCanvas(GUI, TestCanvas, ScreenCanvas, 140, 140);
-			fgui_CanvasDestroy(GUI, TestCanvas);
+			//fgui_CanvasDestroy(GUI, TestCanvas);
 
 			if (PotatoCanvas == IntPtr.Zero)
 				PotatoCanvas = fgui_CanvasCreateFromImage(GUI, PotatoPtr, PotatoLen);
+			/*(int)(400 * Math.Sin((double)SWatch.ElapsedMilliseconds / 2000))*/
 			fgui_CanvasDrawCanvas(GUI, PotatoCanvas, ScreenCanvas, 0, 0);
 			//fgui_CanvasDestroy(GUI, PotatoCanvas);
 
