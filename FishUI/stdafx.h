@@ -1,7 +1,10 @@
 #pragma once
 
-//#include <math.h>
+#include <math.h>
 #include <string.h>
+
+// Intrinsics
+#include <emmintrin.h>
 
 // Allows to pass custom memory allocator instead of using #define'd one
 #define FGUI_DYNAMIC_ALLOC 
@@ -13,6 +16,7 @@
 #else
 #define FGUI_ALLOC __fgui_vmm.Allocate
 #define FGUI_FREE __fgui_vmm.Free
+#define FGUI_REALLOC __fgui_vmm.ReAllocate
 #endif
 
 // Types

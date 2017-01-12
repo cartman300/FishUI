@@ -7,50 +7,127 @@ using System.Threading.Tasks;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Web;
+using System.Threading;
+using System.Diagnostics;
 using System.IO;
+using System.Windows.Forms;
+
 using static Test.FGUI;
 
 namespace Test {
-	class Program {
-		static void Main(string[] args) {
-			Bitmap Bmp = new Bitmap(800, 600);
-			Graphics Gfx = Graphics.FromImage(Bmp);
-			Gfx.Clear(Color.FromArgb(255, 255, 255, 255));
-			Gfx.Flush();
-			Gfx.Dispose();
+	class RenderForm : Form {
+		Stopwatch SWatch;
 
-			BitmapData Dta = Bmp.LockBits(new Rectangle(0, 0, Bmp.Width, Bmp.Height),
+		public RenderForm() {
+			SWatch = new Stopwatch();
+
+			Text = "Hurr Durr";
+			ClientSize = new Size(800, 600);
+			StartPosition = FormStartPosition.CenterScreen;
+			FormBorderStyle = FormBorderStyle.Fixed3D;
+			MaximizeBox = false;
+			DoubleBuffered = true;
+		}
+
+		protected override void OnPaint(PaintEventArgs e) {
+			base.OnPaint(e);
+
+			e.Graphics.Clear(Color.CornflowerBlue);
+
+			BitmapData Dta = Program.Bmp.LockBits(new Rectangle(0, 0, Program.Bmp.Width, Program.Bmp.Height),
 				ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
-			{
-				IntPtr GUI = fgui_Init(Marshal.AllocHGlobal, Marshal.FreeHGlobal, Bmp.Width, Bmp.Height);
 
-				IntPtr TestCanvas = fgui_CanvasCreate(GUI, 100, 100);
+			SWatch.Restart();
+			Program.Rendurr(Dta);
+			SWatch.Stop();
 
-				fgui_CanvasClear(GUI, TestCanvas, 255, 0, 0, 255);
-				fgui_DrawCanvas(GUI, TestCanvas, 100, 100);
+			Program.Bmp.UnlockBits(Dta);
 
-				fgui_CanvasClear(GUI, TestCanvas, 0, 255, 0, 255);
-				fgui_DrawCanvas(GUI, TestCanvas, 120, 120);
+			e.Graphics.DrawImage(Program.Bmp, 0, 0);
+			e.Graphics.DrawString(string.Format("Time: {0} ms", SWatch.ElapsedMilliseconds),
+				SystemFonts.StatusFont, Brushes.White, 0, 0);
+		}
+	}
 
-				fgui_CanvasClear(GUI, TestCanvas, 0, 0, 255, 255);
-				//fgui_CanvasResize(GUI, TestCanvas, 200, 200);
-				fgui_DrawCanvas(GUI, TestCanvas, 140, 140);
+	class Program {
+		static IntPtr GUI = IntPtr.Zero;
+		public static Bitmap Bmp;
 
-				byte[] PotatoBytes = File.ReadAllBytes("potato.png");
-				IntPtr PotatoPtr = Marshal.AllocHGlobal(PotatoBytes.Length);
-				Marshal.Copy(PotatoBytes, 0, PotatoPtr, PotatoBytes.Length);
+		static IntPtr PotatoPtr, PotatoDepthPtr;
+		static int PotatoLen, PotatoDepthLen;
 
-				IntPtr Potato = fgui_CanvasCreateFromImage(GUI, PotatoPtr, PotatoBytes.Length);
-				fgui_DrawCanvas(GUI, Potato, 0, 0);
+		static IntPtr PotatoCanvas = IntPtr.Zero;
 
-				fgui_DrawScreenTo(GUI, Dta.Scan0, 2, 1, 0, 1, Dta.Stride - Dta.Width * 4);
+		static IntPtr ReAlloc(IntPtr Ptr, int Size) {
+			if (Ptr == IntPtr.Zero)
+				return Marshal.AllocHGlobal(Size);
+			return Marshal.ReAllocHGlobal(Ptr, (IntPtr)Size);
+		}
 
-			}
-			Bmp.UnlockBits(Dta);
-			Bmp.Save("test.png");
+		public static void Rendurr(BitmapData Dta) {
+			if (GUI == IntPtr.Zero)
+				GUI = fgui_InitSafe(Marshal.AllocHGlobal, ReAlloc, Marshal.FreeHGlobal, Bmp.Width, Bmp.Height);
 
-			Console.WriteLine("Done!");
-			Console.ReadLine();
+			IntPtr ScreenCanvas = fgui_GetScreenCanvas(GUI);
+			fgui_CanvasClear(GUI, ScreenCanvas, 54, 57, 62, 255);
+
+			IntPtr TestCanvas = fgui_CanvasCreate(GUI, 100, 100);
+			fgui_CanvasClear(GUI, TestCanvas, 255, 0, 0, 255);
+			fgui_CanvasDrawCanvas(GUI, TestCanvas, ScreenCanvas, 100, 100);
+
+			fgui_CanvasClear(GUI, TestCanvas, 0, 255, 0, 255);
+			fgui_CanvasDrawCanvas(GUI, TestCanvas, ScreenCanvas, 120, 120);
+
+			fgui_CanvasClear(GUI, TestCanvas, 0, 0, 255, 255);
+			fgui_CanvasResize(GUI, TestCanvas, 200, 200);
+			fgui_CanvasDrawCanvas(GUI, TestCanvas, ScreenCanvas, 140, 140);
+			fgui_CanvasDestroy(GUI, TestCanvas);
+
+			if (PotatoCanvas == IntPtr.Zero)
+				PotatoCanvas = fgui_CanvasCreateFromImage(GUI, PotatoPtr, PotatoLen);
+			fgui_CanvasDrawCanvas(GUI, PotatoCanvas, ScreenCanvas, 0, 0);
+			//fgui_CanvasDestroy(GUI, PotatoCanvas);
+
+			fgui_DrawScreenTo(GUI, Dta.Scan0, 2, 1, 0, 1, Dta.Stride - Dta.Width * 4);
+		}
+
+		static RenderForm RF;
+		static Stopwatch SWatch;
+
+		static void Main(string[] args) {
+			byte[] PotatoBytes = File.ReadAllBytes("potato.png");
+			PotatoPtr = Marshal.AllocHGlobal(PotatoBytes.Length);
+			Marshal.Copy(PotatoBytes, 0, PotatoPtr, PotatoBytes.Length);
+			PotatoLen = PotatoBytes.Length;
+
+			byte[] PotatoDepthBytes = File.ReadAllBytes("potato_heightmap.png");
+			PotatoDepthPtr = Marshal.AllocHGlobal(PotatoDepthBytes.Length);
+			Marshal.Copy(PotatoDepthBytes, 0, PotatoDepthPtr, PotatoDepthBytes.Length);
+			PotatoDepthLen = PotatoDepthBytes.Length;
+
+			Bmp = new Bitmap(800, 600);
+			RF = new RenderForm();
+
+			SWatch = new Stopwatch();
+			SWatch.Start();
+
+			using (Graphics Gfx = Graphics.FromImage(Bmp))
+				Gfx.Clear(Color.FromArgb(255, 54, 57, 62));
+
+			Thread Worker = new Thread(() => {
+				Thread.Sleep(1000);
+				Action RefreshAction = new Action(RF.Refresh);
+
+				while (!RF.IsDisposed) {
+					RF.Invoke(RefreshAction);
+					Thread.Sleep(100);
+				}
+			});
+			Worker.IsBackground = true;
+			Worker.Start();
+
+			Application.Run(RF);
+			Environment.Exit(0);
 		}
 	}
 }

@@ -7,13 +7,14 @@
 #define STBI_NO_STDIO
 #define STBI_MALLOC FGUI_ALLOC
 #define STBI_FREE FGUI_FREE
-#define STBI_REALLOC_SIZED FGUI_REALLOC
+#define STBI_REALLOC FGUI_REALLOC
 #define STBI_ONLY_PNG
 #include "stb_image.h"
 
-FishGUI* fgui_Init(FishAllocFunc Alloc, FishFreeFunc Free,	int Width, int Height) {
+FishGUI* fgui_Init(FishAllocFunc Alloc, FishReAllocFunc ReAlloc, FishFreeFunc Free, int Width, int Height) {
 #ifdef FGUI_DYNAMIC_ALLOC
 	__fgui_vmm.Allocate = Alloc;
+	__fgui_vmm.ReAllocate = ReAlloc;
 	__fgui_vmm.Free = Free;
 #endif
 
@@ -45,8 +46,8 @@ void fgui_SetResolution(FishGUI* GUI, int W, int H) {
 	GUI->ScreenBuffer = fgui_CanvasCreate(GUI, W, H);
 }
 
-void fgui_DrawCanvas(FishGUI* GUI, FishCanvas* Canvas, int X, int Y) {
-	fgui_CanvasDrawCanvas(GUI, Canvas, GUI->ScreenBuffer, X, Y);
+FishCanvas* fgui_GetScreenCanvas(FishGUI* GUI) {
+	return GUI->ScreenBuffer;
 }
 
 void fgui_DrawScreenTo(FishGUI* GUI, void* Output, int ROffset, int GOffset, int BOffset, int PixelPadding, int LinePadding) {
@@ -97,12 +98,12 @@ FishCanvas* fgui_CanvasCreateFromImage(FishGUI* GUI, byte* Data, int Len) {
 void fgui_CanvasDestroy(FishGUI* GUI, FishCanvas* Canvas) {
 	if (Canvas->Buffer != NULL)
 		FGUI_FREE(Canvas->Buffer);
+
 	if (Canvas != NULL)
 		FGUI_FREE(Canvas);
 }
 
 // TODO: Optimize
-// TODO: Alpha blending?
 void fgui_CanvasDrawCanvas(FishGUI* GUI, FishCanvas* Source, FishCanvas* Dest, int DestX, int DestY) {
 	UNREF_PARAM(GUI);
 
@@ -116,8 +117,12 @@ void fgui_CanvasDrawCanvas(FishGUI* GUI, FishCanvas* Source, FishCanvas* Dest, i
 			uint SrcOffset = Y * SrcW + X;
 			uint DstOffset = (Y + DestY) * DstW + (X + DestX);
 
-			if (Source->Buffer[SrcOffset].A != 0)
-				Dest->Buffer[DstOffset] = Source->Buffer[SrcOffset];
+			byte Alpha = Source->Buffer[SrcOffset].A;
+			if (Alpha != 0) {
+				Dest->Buffer[DstOffset].R = OVERBLEND(Source->Buffer[SrcOffset].R, Dest->Buffer[DstOffset].R, Alpha);
+				Dest->Buffer[DstOffset].G = OVERBLEND(Source->Buffer[SrcOffset].G, Dest->Buffer[DstOffset].G, Alpha);
+				Dest->Buffer[DstOffset].B = OVERBLEND(Source->Buffer[SrcOffset].B, Dest->Buffer[DstOffset].B, Alpha);
+			}
 		}
 	}
 }
@@ -144,29 +149,60 @@ void fgui_CanvasClear(FishGUI* GUI, FishCanvas* Canvas, byte R, byte G, byte B, 
 void fgui_CanvasResize(FishGUI* GUI, FishCanvas* Canvas, int W, int H) {
 	FishCanvas* NewCanvas = fgui_CanvasCreate(GUI, W, H);
 
-	// dest[dx, dy] = src[dx*src_width / dest_width, dy*src_height / dest_height]
-
 	uint SrcH = Canvas->Height;
 	uint SrcW = Canvas->Width;
 	uint DstH = H;
 	uint DstW = W;
 
-	for (uint Y = 0; Y < SrcH; Y++) {
-		for (uint X = 0; X < SrcW; X++) {
-			uint DstOffset = Y * DstW + X;
-			uint SrcOffset = (Y * SrcH / DstH) * SrcW + (X * SrcW / DstW);
+	for (uint Y = 0; Y < DstH; Y++) {
+		uint SrcY = LERP(0, SrcH, Y, DstH);
 
-			NewCanvas->Buffer[DstOffset].R = Canvas->Buffer[SrcOffset].R;
-			NewCanvas->Buffer[DstOffset].G = Canvas->Buffer[SrcOffset].G;
-			NewCanvas->Buffer[DstOffset].B = Canvas->Buffer[SrcOffset].B;
-			NewCanvas->Buffer[DstOffset].A = Canvas->Buffer[SrcOffset].A;
+		for (uint X = 0; X < DstW; X++) {
+			uint SrcX = LERP(0, SrcW, X, DstW);
+
+			uint DstOffset = Y * DstW + X;
+			uint SrcOffset = SrcY * SrcW + SrcX;
+
+			NewCanvas->Buffer[DstOffset] = Canvas->Buffer[SrcOffset];
 		}
 	}
 
 	Canvas->Width = W;
 	Canvas->Height = H;
+
 	FGUI_FREE(Canvas->Buffer);
 	Canvas->Buffer = NewCanvas->Buffer;
 	NewCanvas->Buffer = NULL;
+
 	fgui_CanvasDestroy(GUI, NewCanvas);
+}
+
+void fgui_CanvasDrawCanvasDepth(FishGUI* GUI, FishCanvas* Source, FishCanvas* SourceDepth,
+	FishCanvas* Dest, FishCanvas* DestDepth, int DestX, int DestY) {
+
+	UNREF_PARAM(GUI);
+
+	uint SrcW = Source->Width;
+	uint SrcH = Source->Height;
+	uint DstW = Dest->Width;
+	//uint DstH = Dest->Height;
+
+	for (uint Y = 0; Y < SrcH; Y++) {
+		for (uint X = 0; X < SrcW; X++) {
+			uint SrcOffset = Y * SrcW + X;
+			uint DstOffset = (Y + DestY) * DstW + (X + DestX);
+
+			byte SrcD = SourceDepth->Buffer[SrcOffset].R;
+			byte DstD = DestDepth->Buffer[DstOffset].R;
+
+			if (SrcD >= DstD) {
+				byte Alpha = Source->Buffer[SrcOffset].A;
+				if (Alpha != 0) {
+					Dest->Buffer[DstOffset].R = OVERBLEND(Source->Buffer[SrcOffset].R, Dest->Buffer[DstOffset].R, Alpha);
+					Dest->Buffer[DstOffset].G = OVERBLEND(Source->Buffer[SrcOffset].G, Dest->Buffer[DstOffset].G, Alpha);
+					Dest->Buffer[DstOffset].B = OVERBLEND(Source->Buffer[SrcOffset].B, Dest->Buffer[DstOffset].B, Alpha);
+				}
+			}
+		}
+	}
 }
