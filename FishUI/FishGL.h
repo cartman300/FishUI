@@ -55,6 +55,7 @@ FISHGL_EXTERN struct {
 
 	bool Wireframe;
 	bool DepthTesting;
+	bool BackfaceCulling;
 
 	fgl_color DrawColor;
 	fgl_framebuffer* ColorBuffer;
@@ -69,6 +70,7 @@ EXPORT void fgl_BindDepthBuffer(fgl_framebuffer* Framebuffer);
 EXPORT void fgl_BindTexture(fgl_framebuffer* Framebuffer, int TextureSlot);
 EXPORT void fgl_EnableWireframe(int Enable);
 EXPORT void fgl_EnableDepthTesting(int Enable);
+EXPORT void fgl_EnableBackfaceCulling(int Enable);
 EXPORT void fgl_SetModelMatrix(float* ModelMatrix);
 EXPORT void fgl_SetViewMatrix(float* ViewMatrix);
 EXPORT void fgl_SetProjectionMatrix(float* ProjectionMatrix);
@@ -89,5 +91,6 @@ EXPORT fgl_framebuffer* fgl_CreateFramebufferFromImage(byte* Data, int Len);
 EXPORT void fgl_DestroyFramebuffer(fgl_framebuffer* Framebuffer);
 EXPORT void fgl_ClearFramebuffer(fgl_framebuffer* Framebuffer, fgl_color Clr);
 EXPORT fgl_color* fgl_GetFramebufferData(fgl_framebuffer* Framebuffer, int** Len);
+EXPORT fgl_color fgl_SampleFramebuffer(fgl_framebuffer* Framebuffer, int X, int Y);
 EXPORT fgl_framebuffer* fgl_CopyFramebuffer(fgl_framebuffer* Src);
 EXPORT void fgl_CopyFramebufferData(fgl_framebuffer* Src, fgl_framebuffer* Dest);

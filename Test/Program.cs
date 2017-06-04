@@ -151,7 +151,8 @@ namespace Test {
 		static void Init() {
 			fish_Init();
 			fgl_EnableDepthTesting(1);
-			//fgl_EnableWireframe(1);
+			fgl_EnableWireframe(0);
+			fgl_EnableBackfaceCulling(1);
 			fgl_SetDrawColor(fgl_color.White);
 
 			ColorBuffer = fgl_CreateFramebuffer(W, H);
@@ -161,12 +162,13 @@ namespace Test {
 			fgl_BindDepthBuffer(DepthBuffer);
 
 			fgl_SetModelMatrix(Matrix4x4.Identity);
-			fgl_SetViewMatrix(Matrix4x4.Identity);
+			fgl_SetViewMatrix(Matrix4x4.CreateScale(3.5f));
 			fgl_SetProjectionMatrix(Matrix4x4.CreatePerspectiveFieldOfView(90 * (float)Math.PI / 180, (float)W / H, 0.001f, 100f));
 			//fgl_SetProjectionMatrix(Matrix4x4.CreateOrthographicOffCenter(0, 1, 0, 1, 0.001f, 100f));
 
 			// Load model
-			fgl_triangle[] Triangles = ObjLoader.Load("models\\diablo3_pose\\diablo3_pose.obj");
+			//fgl_triangle[] Triangles = ObjLoader.Load("models\\diablo3_pose\\diablo3_pose.obj");
+			fgl_triangle[] Triangles = ObjLoader.Load("models\\head\\head.obj");
 			TriangleBuffer = fgl_CreateTriangleBuffer();
 			fgl_TriangleBufferData(TriangleBuffer, Triangles, TriangleCount = Triangles.Length);//*/
 
@@ -180,14 +182,15 @@ namespace Test {
 			fgl_TriangleBufferData(TriangleBuffer, Triangles, TriangleCount = Triangles.Length);//*/
 
 			// Load texture
-			byte[] ImageData = File.ReadAllBytes("models\\diablo3_pose\\diablo3_pose_diffuse.png");
+			byte[] ImageData = File.ReadAllBytes("models\\head\\lambertian.jpg");
 			fgl_BindTexture(TextureBuffer = fgl_CreateFramebufferFromImage(ImageData, ImageData.Length), 0);
 		}
 
 		static void Render() {
 			fgl_ClearFramebuffer(ColorBuffer, fgl_color.Black);
 			fgl_ClearFramebuffer(DepthBuffer, fgl_color.DepthZero);
-			fgl_SetModelMatrix(Matrix4x4.CreateRotationY((float)SWatch.ElapsedMilliseconds / 5000));
+			//fgl_SetModelMatrix(Matrix4x4.CreateRotationY((float)SWatch.ElapsedMilliseconds / 5000));
+			fgl_SetModelMatrix(Matrix4x4.CreateRotationY(1));
 			fgl_DrawTriangleBuffer(TriangleBuffer);
 		}
 
@@ -224,6 +227,11 @@ namespace Test {
 
 			Text InfoText2 = new Text("[put text here]", DrawFont, 12);
 			InfoText2.Position = new Vector2f(1, 50);
+
+			RWind.MouseMoved += (S, E) => {
+				fgl_color Clr = fgl_SampleFramebuffer(DepthBuffer, E.X, (int)RWind.Size.Y - E.Y);
+				InfoText2.DisplayedString = Clr.Float.ToString();
+			};
 
 			Texture Tex = new Texture(VMode.Width, VMode.Height);
 			Sprite TexSprite = new Sprite(Tex);

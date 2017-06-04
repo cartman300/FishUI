@@ -26,6 +26,10 @@ void fgl_EnableDepthTesting(int Enable) {
 	fgl_state.DepthTesting = (bool)Enable;
 }
 
+void fgl_EnableBackfaceCulling(int Enable) {
+	fgl_state.BackfaceCulling = (bool)Enable;
+}
+
 void fgl_SetDrawColor(fgl_color Clr) {
 	fgl_state.DrawColor = Clr;
 }
@@ -142,8 +146,19 @@ void fgl_ClearFramebuffer(fgl_framebuffer* Framebuffer, fgl_color Clr) {
 }
 
 fgl_color* fgl_GetFramebufferData(fgl_framebuffer* Framebuffer, int** Len) {
-	*Len = Framebuffer->Length * sizeof(fgl_color);
+	if (Len != NULL)
+		*Len = Framebuffer->Length * sizeof(fgl_color);
 	return Framebuffer->Data;
+}
+
+fgl_color fgl_SampleFramebuffer(fgl_framebuffer* Framebuffer, int X, int Y) {
+	if (X < 0 || Y < 0 || X > Framebuffer->Width || Y > Framebuffer->Height) {
+		fgl_color Empty;
+		Empty.Integer = 0;
+		return Empty;
+	}
+
+	return Framebuffer->Data[Y * Framebuffer->Width + X];
 }
 
 // Triangle drawing
@@ -180,13 +195,17 @@ static inline void fgl_Barycentric(fgl_triangle* T, int PX, int PY, vec3 Val) {
 	Val[_Z] = U[_X] / U[_Z];
 }
 
-static inline void fgl_VertexProcessor(vec3 VertPos) {
+static inline void fgl_VertexProcessor(vec3 VertPos, bool* Discard) {
 	vec4 Pt;
 	memcpy(Pt, VertPos, sizeof(vec3));
 	Pt[_W] = 1.0f;
 
 	vec4 Res;
 	mat4x4_mul_vec4(Res, fgl_state.VertexShaderMatrix, Pt);
+
+	if (Res[_X] > 1 || Res[_X] < -1 || Res[_Y] > 1 || Res[_Y] < -1 || Res[_Z] > 1 || Res[_Z] < -1 || Res[_W] > 1 || Res[_W] < -1)
+		*Discard = true;
+
 	memcpy(VertPos, Res, sizeof(vec3));
 
 	vec3 offset = { 1, 1, -1 };
@@ -197,7 +216,7 @@ static inline void fgl_VertexProcessor(vec3 VertPos) {
 	vec3_scale_vec(VertPos, VertPos, scale);
 }
 
-static inline fgl_color fgl_PixelProcessor(float U, float V, float Depth, bool* Discard) {
+static inline fgl_color fgl_PixelProcessor(float U, float V, float Depth, vec3 cross, bool* Discard) {
 	U = fmaxf(fminf(U, 1), 0);
 	V = fmaxf(fminf(V, 1), 0);
 
@@ -205,14 +224,21 @@ static inline fgl_color fgl_PixelProcessor(float U, float V, float Depth, bool* 
 	V *= (fgl_state.TextureBuffers[0]->Height - 1);
 
 	fgl_color Clr = fgl_state.TextureBuffers[0]->Data[(int)V * fgl_state.TextureBuffers[0]->Width + (int)U];
+
 	*Discard = Clr.A == 0 ? true : false;
+	//*Discard = false;
 	return Clr;
 }
 
 void fgl_DrawTriangle(fgl_triangle Tri) {
-	fgl_VertexProcessor((float*)&Tri.A);
-	fgl_VertexProcessor((float*)&Tri.B);
-	fgl_VertexProcessor((float*)&Tri.C);
+	bool Discard0 = false, Discard1 = false, Discard2 = false;
+
+	fgl_VertexProcessor((float*)&Tri.A, &Discard0);
+	fgl_VertexProcessor((float*)&Tri.B, &Discard1);
+	fgl_VertexProcessor((float*)&Tri.C, &Discard2);
+
+	if (Discard0 && Discard1 && Discard2)
+		return;
 
 	vec3 cross, min, max, bcentric;
 	vec3_sub(min, (float*)&Tri.C, (float*)&Tri.A);
@@ -221,7 +247,7 @@ void fgl_DrawTriangle(fgl_triangle Tri) {
 	vec3_norm(cross, cross);
 
 	// Backface culling
-	if (cross[_Z] > 0)
+	if (fgl_state.BackfaceCulling && cross[_Z] > 0)
 		return;
 
 	fgl_BoundingBox(&Tri, min, max);
@@ -244,7 +270,7 @@ void fgl_DrawTriangle(fgl_triangle Tri) {
 				float TexV = 1.0f - ((Tri.UVs.A.y * bcentric[_X]) + (Tri.UVs.B.y * bcentric[_Y]) + (Tri.UVs.C.y * bcentric[_Z]));
 
 				bool DiscardPixel = false;
-				fgl_color PixColor = fgl_PixelProcessor(TexU, TexV, D, &DiscardPixel);
+				fgl_color PixColor = fgl_PixelProcessor(TexU, TexV, D, cross, &DiscardPixel);
 				if (DiscardPixel)
 					continue;
 
@@ -254,7 +280,8 @@ void fgl_DrawTriangle(fgl_triangle Tri) {
 					continue;
 				else if (PixColor.A = 255) {
 					fgl_state.ColorBuffer->Data[Idx] = PixColor;
-				} else {
+				}
+				else {
 					fgl_color* Dst = &fgl_state.ColorBuffer->Data[Idx];
 					Dst->R = OVERBLEND(PixColor.R, Dst->R, PixColor.A);
 					Dst->G = OVERBLEND(PixColor.R, Dst->R, PixColor.A);
@@ -315,7 +342,8 @@ void fgl_DrawLine(int X0, int Y0, int X1, int Y1) {
 				continue;
 
 			fgl_state.ColorBuffer->Data[X * fgl_state.ColorBuffer->Width + Y] = fgl_state.DrawColor;
-		} else {
+		}
+		else {
 			if (Y < 0 || Y >= fgl_state.ColorBuffer->Height || X < 0 || X >= fgl_state.ColorBuffer->Width)
 				continue;
 

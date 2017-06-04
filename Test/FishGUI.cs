@@ -134,6 +134,9 @@ namespace Test {
 		public static extern IntPtr fgl_GetFramebufferData(IntPtr Framebuffer, out int Len);
 
 		[DllImport(DllName, CallingConvention = CConv)]
+		public static extern fgl_color fgl_SampleFramebuffer(IntPtr Framebuffer, int X, int Y);
+
+		[DllImport(DllName, CallingConvention = CConv)]
 		public static extern void fgl_ClearFramebuffer(IntPtr Framebuffer, fgl_color Clr);
 
 		[DllImport(DllName, CallingConvention = CConv)]
@@ -156,6 +159,9 @@ namespace Test {
 
 		[DllImport(DllName, CallingConvention = CConv)]
 		public static extern void fgl_EnableDepthTesting(int Enable);
+
+		[DllImport(DllName, CallingConvention = CConv)]
+		public static extern void fgl_EnableBackfaceCulling(int Enable);
 
 		[DllImport(DllName, CallingConvention = CConv)]
 		public static extern void fgl_SetModelMatrix(Matrix4x4* ModelMatrix);

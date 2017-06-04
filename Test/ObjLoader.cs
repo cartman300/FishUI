@@ -46,7 +46,7 @@ namespace Test {
 				while (L.Contains("  "))
 					L = L.Replace("  ", " ");
 
-				if (L.Length == 0 || L.StartsWith("#"))
+				if (L.Length == 0 || L.StartsWith("#") || L == "\0")
 					continue;
 
 				string[] Tokens = L.Split(' ');
@@ -73,20 +73,60 @@ namespace Test {
 
 							ParseFace(Tokens.Skip(1).ToArray(), out VertInds, out UVInds);
 
+							for (int j = 0; j < VertInds.Length; j++)
+								if (VertInds[j] < 0) VertInds[j] = Verts.Count - VertInds[j];
+							for (int j = 0; j < UVInds.Length; j++)
+								if (UVInds[j] < 0) UVInds[j] = UVs.Count - UVInds[j];
+
 							/*Tris.Add(Verts[VertInds[0] - 1]);
 							Tris.Add(Verts[VertInds[1] - 1]);
 							Tris.Add(Verts[VertInds[2] - 1]);*/
 
-							Tri T = new Tri();
-							T.A = Verts[VertInds[0]];
-							T.B = Verts[VertInds[1]];
-							T.C = Verts[VertInds[2]];
+							if (VertInds.Length == 3) { // Triangles
+								Tri T = new Tri();
+								T.A = Verts[VertInds[0]];
+								T.B = Verts[VertInds[1]];
+								T.C = Verts[VertInds[2]];
 
-							T.A_UV = UVs[UVInds[0]];
-							T.B_UV = UVs[UVInds[1]];
-							T.C_UV = UVs[UVInds[2]];
+								T.A_UV = UVs[UVInds[0]];
+								T.B_UV = UVs[UVInds[1]];
+								T.C_UV = UVs[UVInds[2]];
+								Tris.Add(T);
+							} else if (VertInds.Length == 4) { // Quads
+								Tri T1 = new Tri();
+								T1.A = Verts[VertInds[0]];
+								T1.B = Verts[VertInds[1]];
+								T1.C = Verts[VertInds[2]];
 
-							Tris.Add(T);
+								T1.A_UV = UVs[UVInds[0]];
+								T1.B_UV = UVs[UVInds[1]];
+								T1.C_UV = UVs[UVInds[2]];
+								Tris.Add(T1);
+
+								Tri T2 = new Tri();
+								T2.A = Verts[VertInds[2]];
+								T2.B = Verts[VertInds[3]];
+								T2.C = Verts[VertInds[0]];
+
+								T2.A_UV = UVs[UVInds[2]];
+								T2.B_UV = UVs[UVInds[3]];
+								T2.C_UV = UVs[UVInds[0]];
+								Tris.Add(T2);
+							} else
+								throw new NotImplementedException();
+							break;
+						}
+
+					case "mtllib": {
+							// TODO
+							break;
+						}
+
+					case "usemtl": {
+							break;
+						}
+
+					case "g": {
 							break;
 						}
 
